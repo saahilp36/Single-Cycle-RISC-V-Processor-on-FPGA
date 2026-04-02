@@ -41,3 +41,61 @@ display t2(.data_in(prode_register_file),
 
 endmodule
 
+
+
+
+
+//for i type
+// LW (mem[5] -> rf[1]) and SW (rf[9] -> mem[2])
+    logic [31:0] inst_0 = 32'b0;
+    logic [31:0] inst_1 = 32'b100011_00000_00001_0000_0000_0000_0101; // LW r1,5(r0)
+    logic [31:0] inst_2 = 32'b101011_01001_00000_0000_0000_0000_0010; // SW r9,2(r0)
+    logic [31:0] inst_ex;
+
+    assign inst_ex = (sw==1)? inst_1:(sw==2)? inst_2: inst_0;
+
+    // Control signals
+    logic RegWrite, MemWrite, MemtoReg, ALUSrc;
+    logic [2:0] ALUControl;
+
+    always_comb begin
+        case (inst_ex[31:26]) // opcode
+            6'b100011: begin // LW
+                RegWrite = 1; MemWrite = 0; MemtoReg = 1; ALUSrc = 1; ALUControl = 3'b010;
+            end
+            6'b101011: begin // SW
+                RegWrite = 0; MemWrite = 1; MemtoReg = 0; ALUSrc = 1; ALUControl = 3'b010;
+            end
+            default: begin
+                RegWrite = 0; MemWrite = 0; MemtoReg = 0; ALUSrc = 0; ALUControl = 3'b010;
+            end
+        endcase
+    end
+
+    // Wires
+    logic [31:0] SignImm, SrcB, MemRD, WD3;
+    logic [4:0]  A3;
+
+    // Instantiate components
+    register_file r_f(.clk(clk), .rst(rst),
+        .A1(inst_ex[25:21]), .A2(inst_ex[20:16]), .A3(inst_ex[20:16]),
+        .WD3(WD3), .WE3(RegWrite),
+        .RD1(RD1), .RD2(RD2), .prode(prode_register_file)
+    );
+
+    sign_extend s1(.imm(inst_ex[15:0]), .signimm(SignImm));
+    mux_alusrc m1(.in0(RD2), .in1(SignImm), .sel(ALUSrc), .out(SrcB));
+    ALU alu1(.SrcA(RD1), .SrcB(SrcB), .ALUControl(ALUControl), .ALUResult(ALUResult));
+    data_memory mem1(.clk(clk), .WE(MemWrite), .A(ALUResult), .WD(RD2), .RD(MemRD));
+    mux_memtoreg m2(.in0(ALUResult), .in1(MemRD), .sel(MemtoReg), .out(WD3));
+
+    // Display register[1] value on 7-seg
+    display d1(.data_in(prode_register_file), .segments(display_led));
+
+
+
+
+
+
+
+
